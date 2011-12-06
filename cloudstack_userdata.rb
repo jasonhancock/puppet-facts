@@ -27,29 +27,47 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 
-
 require 'facter'
 
-file = '/var/lib/dhclient/dhclient-eth0.leases'
+lease_dir = '/var/lib/dhclient'
+regex = Regexp.new(/dhclient.+lease$/)
 
-if File.exist?(file) && File.size?(file) != nil 
-
-    cmd = sprintf("/bin/grep dhcp-server-identifier %s | /usr/bin/tail -1 | /bin/awk '{print $NF}' | /usr/bin/tr '\;' ' '", file)
-    virtual_router = `#{cmd}`
-    virtual_router.strip!
-
-    cmd = sprintf('/usr/bin/wget -q -O - http://%s/latest/user-data', virtual_router)
-    result = `#{cmd}`
+Dir.entries('/var/lib/dhclient').each do |file|
+    result = regex.match(file)
     
-    lines = result.split("\n")
+    # Expand file back into the absolute path
+    file = lease_dir + '/' + file
 
-    lines.each do |line|
-        if line =~ /^(.+)=(.+)$/
-            var = $1; val = $2
+    if result && File.size?(file) != nil
+        print "i'm in here\n" 
+        cmd = sprintf("/bin/grep dhcp-server-identifier %s | /usr/bin/tail -1 | /bin/awk '{print $NF}' | /usr/bin/tr '\;' ' '", file)
+        
+        virtual_router = `#{cmd}`
+        virtual_router.strip!
 
-            Facter.add(var) do
-                setcode { val }
+        cmd = sprintf('/usr/bin/wget -q -O - http://%s/latest/user-data', virtual_router)
+        result = `#{cmd}`
+
+        lines = result.split("\n")
+
+        lines.each do |line|
+            if line =~ /^(.+)=(.+)$/
+                var = $1; val = $2
+
+                Facter.add(var) do
+                    setcode { val }
+                end
             end
+        end
+
+        # use the older method of http://virtual_router_ip/latest/{metadata-type}
+        # because the newer http://virtual_router_ip/latest/meta-data/{metadata-type}
+        # was 404'ing on CloudStack v2.2.12 
+        cmd = sprintf('/usr/bin/wget -q -O - http://%s/latest/instance-id', virtual_router)
+        result = `#{cmd}`
+
+        Facter.add('instance_id') do
+            setcode { result }
         end
     end
 end
