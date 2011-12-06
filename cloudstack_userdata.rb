@@ -39,7 +39,6 @@ Dir.entries('/var/lib/dhclient').each do |file|
     file = lease_dir + '/' + file
 
     if result && File.size?(file) != nil
-        print "i'm in here\n" 
         cmd = sprintf("/bin/grep dhcp-server-identifier %s | /usr/bin/tail -1 | /bin/awk '{print $NF}' | /usr/bin/tr '\;' ' '", file)
         
         virtual_router = `#{cmd}`
