@@ -30,7 +30,7 @@
 require 'facter'
 
 lease_dir = '/var/lib/dhclient'
-regex = Regexp.new(/dhclient.+lease$/)
+regex = Regexp.new(/dhclient.+lease/)
 
 Dir.entries('/var/lib/dhclient').each do |file|
     result = regex.match(file)
