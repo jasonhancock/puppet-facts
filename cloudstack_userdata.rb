@@ -29,17 +29,30 @@
 
 require 'facter'
 
-lease_dir = '/var/lib/dhclient'
+lease_dir = case Facter.value(:operatingsystem)
+    when "Ubuntu"
+        '/var/lib/dhcp3'
+    else
+        '/var/lib/dhclient'
+end
+
+awk = case Facter.value(:operatingsystem)
+    when "Ubuntu"
+        '/usr/bin/awk'
+    else
+        '/bin/awk'
+end
+
 regex = Regexp.new(/dhclient.+lease/)
 
-Dir.entries('/var/lib/dhclient').each do |file|
+Dir.entries(lease_dir).each do |file|
     result = regex.match(file)
     
     # Expand file back into the absolute path
     file = lease_dir + '/' + file
 
     if result && File.size?(file) != nil
-        cmd = sprintf("/bin/grep dhcp-server-identifier %s | /usr/bin/tail -1 | /bin/awk '{print $NF}' | /usr/bin/tr '\;' ' '", file)
+        cmd = sprintf("/bin/grep dhcp-server-identifier %s | /usr/bin/tail -1 | %s '{print $NF}' | /usr/bin/tr '\;' ' '", file, awk)
         
         virtual_router = `#{cmd}`
         virtual_router.strip!
