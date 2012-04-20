@@ -29,57 +29,54 @@
 
 require 'facter'
 
-lease_dir = case Facter.value(:operatingsystem)
-    when "Ubuntu"
-        '/var/lib/dhcp3'
-    else
-        '/var/lib/dhclient'
-end
+ENV['PATH']='/bin:/sbin:/usr/bin:/usr/sbin'
 
-awk = case Facter.value(:operatingsystem)
-    when "Ubuntu"
-        '/usr/bin/awk'
-    else
-        '/bin/awk'
-end
+# The dirs to search for the dhcp lease files in. Works for RHEL/CentOS and Ubuntu
+dirs = ['/var/lib/dhclient', '/var/lib/dhcp3']
 
 regex = Regexp.new(/dhclient.+lease/)
 
-Dir.entries(lease_dir).each do |file|
-    result = regex.match(file)
+dirs.each do |lease_dir|
+    if !File.directory? lease_dir 
+        next 
+    end
+
+    Dir.entries(lease_dir).each do |file|
+        result = regex.match(file)
     
-    # Expand file back into the absolute path
-    file = lease_dir + '/' + file
+        # Expand file back into the absolute path
+        file = lease_dir + '/' + file
 
-    if result && File.size?(file) != nil
-        cmd = sprintf("/bin/grep dhcp-server-identifier %s | /usr/bin/tail -1 | %s '{print $NF}' | /usr/bin/tr '\;' ' '", file, awk)
+        if result && File.size?(file) != nil
+            cmd = sprintf("grep dhcp-server-identifier %s | tail -1 | awk '{print $NF}' | /usr/bin/tr '\;' ' '", file)
         
-        virtual_router = `#{cmd}`
-        virtual_router.strip!
+            virtual_router = `#{cmd}`
+            virtual_router.strip!
 
-        cmd = sprintf('/usr/bin/wget -q -O - http://%s/latest/user-data', virtual_router)
-        result = `#{cmd}`
+            cmd = sprintf('wget -q -O - http://%s/latest/user-data', virtual_router)
+            result = `#{cmd}`
 
-        lines = result.split("\n")
+            lines = result.split("\n")
 
-        lines.each do |line|
-            if line =~ /^(.+)=(.+)$/
-                var = $1; val = $2
+            lines.each do |line|
+                if line =~ /^(.+)=(.+)$/
+                    var = $1; val = $2
 
-                Facter.add(var) do
-                    setcode { val }
+                    Facter.add(var) do
+                        setcode { val }
+                    end
                 end
             end
-        end
 
-        # use the older method of http://virtual_router_ip/latest/{metadata-type}
-        # because the newer http://virtual_router_ip/latest/meta-data/{metadata-type}
-        # was 404'ing on CloudStack v2.2.12 
-        cmd = sprintf('/usr/bin/wget -q -O - http://%s/latest/instance-id', virtual_router)
-        result = `#{cmd}`
+            # use the older method of http://virtual_router_ip/latest/{metadata-type}
+            # because the newer http://virtual_router_ip/latest/meta-data/{metadata-type}
+            # was 404'ing on CloudStack v2.2.12 
+            cmd = sprintf('wget -q -O - http://%s/latest/instance-id', virtual_router)
+            result = `#{cmd}`
 
-        Facter.add('instance_id') do
-            setcode { result }
+            Facter.add('instance_id') do
+                setcode { result }
+            end
         end
     end
 end
